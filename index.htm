@@ -1,0 +1,572 @@
+<!DOCTYPE html>
+<html>
+	<head>
+	<title>Graph</title>
+	<meta charset="utf-8">
+<style type="text/css">
+	body{
+		overflow:hidden;
+	}
+	input{
+		
+		width:96%;
+		height:30px;
+		font-size:20px;
+	}
+	input.forb{
+		background-color:rgb(200,200,200);
+	}
+	button{
+		height:30px;
+		width:80px;
+		font-size:15px;
+	}	
+	body{
+		background-color:rgb(255,255,240);
+	}
+	div{
+		text-align:center;
+		font-size:30px;
+		position:fixed;
+		
+		width:20%;
+		left:80%;
+		top:0%;
+		background-color:rgb(215,200,255);
+	}
+	</style>
+	<script src="rubrics.js" type="text/javascript"></script>
+	<script src="d3.js"></script>
+	<script src="d3.min.js"></script>
+	<script type="text/javascript">
+	function getFromJSONfile(){
+		var res=wor;
+		return res;
+	}
+	var chosenWord=-1;
+	function max(a,b){return a>b?a:b;};
+	function min(a,b){return a<b?a:b;};
+	function countOnLevels(ind,depth){
+		if (shown[mas[ind]]==0)
+			return;
+		levelCount[depth]+=2*ballRadius[size[ind]];
+		for (var i=0;i<children[ind].length;++i)
+			countOnLevels(children[ind][i],depth+1);
+	}
+	function findWidth(ind,step){
+		if (shown[mas[ind]]==0){
+			width[ind]=0;
+			for (var i=0;i<children[ind].length;++i)
+				findWidth(children[ind][i],step+1);	
+			return 0;
+		}
+		len=dist[step];
+		var sons=0;
+		for (var i=0;i<children[ind].length;++i)
+			sons+=findWidth(children[ind][i],step+1);	
+		var k1=1,k2=0;
+		/*if (size[ind]==3){
+			k1=0.005;k2=1;
+		}
+		if (size[ind]==2){
+			k1=0.5;k2=1;
+		}*/
+		width[ind]=max(2*ballRadius[size[ind]]/(2*pi*len),(sons));//k1*(ballRadius[size[ind]]/(2*pi*len))+k2*(sons);
+		return width[ind];
+	}
+	function findGivenWidth(ind,step){
+		if (givenWidth[ind]<0.5*ballRadius[size[ind]]/(2*pi*dist[step])){
+			okWeight=0;
+			whatIncrease=step;
+		//	howIncrease=((ballRadius[size[ind]]/(2*pi*dist[step])))/givenWidth[ind];	
+		}
+		var sum=0;
+		for (var i=0;i<children[ind].length;++i)
+			sum+=width[children[ind][i]];		
+		for (var i=0;i<children[ind].length;++i)
+			givenWidth[children[ind][i]]=givenWidth[ind]*width[children[ind][i]]/sum;
+		for (var i=0;i<children[ind].length;++i)
+			findGivenWidth(children[ind][i],step+1);
+	}
+	function buildPoint(ind,startAng,stepp,centerx,centery,mnog){
+		mnog=1;
+		len=dist[stepp];
+		step=dist[stepp+1]-dist[stepp];
+		var now=startAng;
+		px[ind]=centerx+(len-step*(1-mnog))*Math.cos(startAng+givenWidth[ind]/2);
+		py[ind]=centery+(len-step*(1-mnog))*Math.sin(startAng+givenWidth[ind]/2);
+		for (var i=0;i<children[ind].length;++i){
+			buildPoint(children[ind][i],now,stepp+1,centerx,centery,(23+(i*17)%7)/(29));	
+			now+=givenWidth[children[ind][i]];
+		}
+	}
+	function mouseDef(ind){
+		var W=words.keywords[mas[ind]].definition.length*10;
+		if (W!=0){
+			vis.selectAll("def").data([mas[ind]]).enter().append("rect").attr("x",function(d){return px[back[d]]+30*scale;}).attr("y",function(d){return py[back[d]];}).attr("width",(10+W)*scale).attr("height",30*scale).attr("fill","yellow").attr("rx",5*scale).attr("ry",5*scale).attr("stroke","black").attr("id","deffy1");
+			vis.selectAll("def2").data([mas[ind]]).enter().append("text").text(function(d){return words.keywords[mas[ind]].definition;}).attr("x",function(d){return px[back[d]]+35*scale;}).attr("y",function(d){return py[back[d]]+20*scale;}).attr("font-family", "sans-serif").attr("font-size", 15*scale+"px").attr("fill", "black").attr("id","deffy2");
+		}
+		vis.selectAll("#titles").remove();
+		var masss=new Array();
+		masss=[];
+		masss[0]=(mas[ind]);
+		for (var i=0;i<words.keywords[mas[ind]].synonyms.length;++i)
+			masss[masss.length]=(words.keywords[mas[ind]].synonyms[i]);
+		vis.selectAll("name").data(masss).enter().append("text").text(function(d) {return words.keywords[d].word;}).attr("x", function(d) { return px[back[d]]+10*scale; }).attr("y", function(d){ return py[back[d]]; }).attr("font-family", "sans-serif").attr("font-size", function(d){if (shown[d]==1)return fontSize[size[back[d]]]*scale+"px";else return 0;}).attr("fill", "black").attr("id","titles");
+	}
+	function mouseOut(ind){
+		
+		vis.selectAll("#titles").remove();
+		vis.selectAll("name").data(mas).enter().append("text").text(function(d) {return words.keywords[d].word;}).attr("x", function(d) { return px[back[d]]+10*scale; }).attr("y", function(d){ return py[back[d]]; }).attr("font-family", "sans-serif").attr("font-size", function(d){if (shown[d]==1)return fontSize[size[back[d]]]*scale+"px";else return 0;}).attr("fill", "black").attr("id","titles");
+		vis.selectAll("#deffy1").remove();
+		vis.selectAll("#deffy2").remove();
+	}
+	function mouseClick(ind){
+		chosenWord=mas[ind];
+		ind=mas[ind];
+		document.getElementById("wordText").value=words.keywords[ind].word;
+		document.getElementById("definitionText").value=words.keywords[ind].definition;
+		if (words.keywords[ind].parents.length>0){
+		document.getElementById("parentText").value=words.keywords[ind].parents.length>0?words.keywords[ind].parents[0]:"";
+		document.getElementById("parentNameText").value=words.keywords[words.keywords[ind].parents[0]].word;
+		}
+		else{
+			document.getElementById("parentText").value="";
+			document.getElementById("parentNameText").value="";
+		}
+		document.getElementById("weightText").value=words.keywords[ind].weight;
+		var st="";
+		var was={};
+		for (var i=0;i<words.keywords[ind].synonyms.length;++i){
+
+			if (was[words.keywords[words.keywords[ind].synonyms[i]].word]=="was")
+				continue;
+			if (st.length>0)
+				st+=',';
+			was[words.keywords[words.keywords[ind].synonyms[i]].word]="was";
+			st=st+words.keywords[words.keywords[ind].synonyms[i]].word;
+			
+		}
+		document.getElementById("synonymsText").value=st;
+		document.getElementById("idText").value=chosenWord;
+	}
+	function exist(wordd){
+		var res=new Array();
+		res=[];
+		for (var i in words.keywords)
+			if (words.keywords[i].word==wordd)
+				res[res.length]=i;
+		return res;
+	}
+	function existID(wordd){
+		var res=new Array();
+		res=[];
+		for (var i in words.keywords)
+			if (i==wordd)
+				res[res.length]=i;
+		return res;
+	}
+	function rightClick(ind){
+		if (state[mas[ind]]==1)
+			state[mas[ind]]=0;
+		else
+			state[mas[ind]]=1;
+		if (children[ind].length==0)
+		state[mas[ind]]=0;
+		drawAgain(1);
+	}
+	function checkForbid(ind,seen){
+		shown[mas[ind]]=seen;
+		if (state[mas[ind]]==1)
+			seen=0;
+		for (var i=0;i<children[ind].length;++i)
+			checkForbid(children[ind][i],seen);
+	}
+	function change(){
+		//check
+		if (document.getElementById("parentText").value!="" && existID(document.getElementById("parentText").value).length==0){
+			alert("Word ID'"+document.getElementById("parentText").value+"' not found");
+			return;
+		}
+		if (document.getElementById("weightText").value!='1' && document.getElementById("weightText").value!='2' && document.getElementById("weightText").value!='3'){
+			alert("Weight should be either 1 or 2 or 3");
+			return;
+		}
+		var synAr=document.getElementById("synonymsText").value.split(',');
+		for (var i=0;i<synAr.length;++i)
+			if (synAr[i].length>0)
+			if (exist(synAr[i]).length==0){	
+				alert("Word '"+synAr[i]+"' not found");
+				return;
+			}
+		words.keywords[chosenWord].word=document.getElementById("wordText").value;
+		words.keywords[chosenWord].definition=document.getElementById("definitionText").value;
+		var shouldCh=0;
+		if (words.keywords[chosenWord].parents!=existID(document.getElementById("parentText").value)){
+			shouldCh=1;
+		}
+		words.keywords[chosenWord].parents=existID(document.getElementById("parentText").value);
+		words.keywords[chosenWord].weight=document.getElementById("weightText").value;
+		words.keywords[chosenWord].synonyms=[];
+		for (var i=0;i<synAr.length;++i)
+			for (var j=0;j<exist(synAr[i]).length;++j){
+				words.keywords[chosenWord].synonyms.push(exist(synAr[i])[j]);
+				words.keywords[exist(synAr[i])[j]].synonyms.push(chosenWord);
+			}
+		drawAgain(shouldCh);
+	}
+	function add(){
+		//check
+		chosenWord=1;
+		for (var i in words.keywords)
+			chosenWord=max(chosenWord,parseInt(i));
+		chosenWord=chosenWord+1;
+		if (document.getElementById("parentText").value!="" && existID(document.getElementById("parentText").value).length==0){
+			alert("Word ID'"+document.getElementById("parentText").value+"' not found");
+			return;
+		}
+
+		if (document.getElementById("weightText").value!='1' && document.getElementById("weightText").value!='2' && document.getElementById("weightText").value!='3'){
+			alert("Weight should be either 1 or 2 or 3");
+			return;
+		}
+
+		var synAr=document.getElementById("synonymsText").value.split(',');
+		for (var i=0;i<synAr.length;++i)
+			if (synAr[i].length>0)
+			if (exist(synAr[i]).length==0){	
+				alert("Word '"+synAr[i]+"' not found");
+				return;
+			}
+		words.keywords[chosenWord]={};
+		words.keywords[chosenWord].word=document.getElementById("wordText").value;
+		words.keywords[chosenWord].definition=document.getElementById("definitionText").value;
+
+		words.keywords[chosenWord].parents=existID(document.getElementById("parentText").value);
+
+		words.keywords[chosenWord].weight=document.getElementById("weightText").value;
+		words.keywords[chosenWord].synonyms=[];
+
+		for (var i=0;i<synAr.length;++i)
+			for (var j=0;j<exist(synAr[i]).length;++j){
+				words.keywords[chosenWord].synonyms.push(exist(synAr[i])[j]);
+				words.keywords[exist(synAr[i])[j]].synonyms.push(chosenWord);
+			}
+		state[chosenWord]=0;
+		shown[chosenWord]=0;
+		drawAgain(1);
+	}
+	function delNode(num){
+		for (var i=0;i<children[back[num]].length;++i)
+			delNode(mas[children[back[num]][i]]);
+		for (var i in words.keywords)
+			for (var j=0;j<words.keywords[i].synonyms.length;++j)
+				if (words.keywords[i].synonyms[j]==num){
+					words.keywords[i].synonyms[j]=words.keywords[i].synonyms[words.keywords[i].synonyms.length-1];
+					words.keywords[i].synonyms.pop();
+				}
+		delete words.keywords[num];
+
+	}
+	
+	function close2levels(ind,dep){
+		if (dep==2){
+			state[mas[ind]]=1;
+			shown[mas[ind]]=1;
+		}
+		if (dep>2){
+			state[mas[ind]]=2;
+			shown[mas[ind]]=0;
+		}
+		if (dep<2){
+			state[mas[ind]]=0;
+			shown[mas[ind]]=1;
+		}
+		for (var i=0;i<children[ind].length;++i)
+			close2levels(children[ind][i],dep+1);
+		if (children[ind].length==0)
+			state[mas[ind]]=0;
+	}
+	function translateAndZoom(){
+		for (var i=0;i<mas.length;++i){
+			px[i]*=scale;
+			py[i]*=scale;
+			px[i]+=scaleX;
+			py[i]+=scaleY;
+		}
+	}
+	function zoom(x,y,z){
+		px[i]*=scale;
+		py[i]*=scale;
+		for (var i=0;i<mas.length;++i){
+			px[i]-=scaleX;
+			py[i]-=scaleY;
+			px[i]/=scale;
+			py[i]/=scale;
+			
+		}
+		scaleX=(scaleX-x*z)/(-z+1);
+		scale=(scaleY+scale-y*z)/(-z+1)-(scaleY-y*z)/(-z+1);
+		scaleY=(scaleY-y*z)/(-z+1);
+		translateAndZoom();
+		/*for (var i=0;i<mas.length;++i){
+			px[i]=(px[i]-x*z)/(-z+1);
+			py[i]=(py[i]-y*z)/(-z+1);
+		}
+		if (z>0)
+			scale*=1.1;
+		else
+			scale/=1.1;*/
+		drawAgain(1);
+	}
+	function saveToJSONfile(){
+	//какнибудь сохранить в файл
+	alert("save");
+	}
+	function del(){
+		//check
+		delNode(chosenWord);
+		chosenWord=-1;
+		drawAgain(1);
+	}
+	function drawAgain(countAgain){
+	d3.selectAll("#titles").remove();
+	d3.selectAll("#nodes").remove();
+	d3.selectAll("#lines").remove();
+	if (countAgain){
+	dist=[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0];
+	levelCount=[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0];
+	parents=[];
+	children=[];
+		width=[];
+		givenWidth=[];
+	size=[];
+	dads=[];
+	px=[];
+	py=[];
+	mas=[];
+	linksAr=[];
+	masLinks=[];
+	back=[];
+	//scale=1;
+	for (var i in words.keywords){
+		back[i]=mas.length;
+		mas[mas.length]=i;
+	}
+	for (var i in words.keywords){
+		children[children.length]=[];
+		size[size.length]=4-words.keywords[i].weight;
+	}
+	for (var i in words.keywords)
+		if (words.keywords[i].parents.length==0)
+			dads.push(back[i]);
+		
+	for (var i in words.keywords){
+		parents[parents.length]=words.keywords[i].parents;
+		for (var j=0;j<words.keywords[i].parents.length;++j){
+			children[back[ words.keywords[i].parents[j] ]].push(back[i]);
+			linksAr.push(new Array(back[i],back[words.keywords[i].parents[j]]));
+		}
+	}
+	for (var i=0;i<dads.length;++i)
+		checkForbid(dads[i],1);
+	for (var i=0;i<linksAr.length;++i)
+		masLinks[i]=i;
+
+	for (var i=0;i<dads.length;++i)
+		countOnLevels(dads[i],0);
+	for (var i=0;i<levelCount.length;++i)
+		dist[i]=max(i>0?dist[i-1]+150:0,2*levelCount[i]/pi);
+	
+	while(1){
+		for (var i=1;i<levelCount.length;++i)
+			dist[i]=max(max(dist[i-1]*1.1,dist[i-1]+150),dist[i]);
+		var sum=0;
+		for (var i=0;i<dads.length;++i){
+			sum=sum+findWidth(dads[i],0);
+		}
+		var okWeight=1;
+		var whatIncrease,howIncrease;
+		for (var i=0;i<dads.length;++i){
+			givenWidth[dads[i]]=2*pi*width[dads[i]]/sum;
+			findGivenWidth(dads[i],0);
+		}
+		if (okWeight)
+			break;
+		//alert(whatIncrease);
+		dist[whatIncrease]+=150;
+		//alert(dist);
+	}
+	var now=0;
+	var cenX=0;
+	var cenY=0;
+
+	for (var i=0;i<dads.length;++i){
+		buildPoint(dads[i],now,0,cenX,cenY,children[dads[i]].length>0?((18+(i*11)%3)/(20)):-1/4);	
+		now+=givenWidth[dads[i]];
+	}
+	pxx=px;
+	pyy=py;
+	//scale=0.18;
+	translateAndZoom();
+	//if count again finishes here
+	}
+	if (!countAgain){
+	for (var i=0;i<dads.length;++i)
+		checkForbid(dads[i],1);
+	}
+	vis.selectAll(".line").data(masLinks).enter().append("line").attr("x1", function(d) {if (shown[mas[linksAr[d][0]]]==1 && shown[mas[linksAr[d][1]]]==1) return px[linksAr[d][0]]; else return 0;}).attr("y1", function(d) {if (shown[mas[linksAr[d][0]]]==1 && shown[mas[linksAr[d][1]]]==1) return py[linksAr[d][0]]; else return 0;}).attr("x2", function(d) {if (shown[mas[linksAr[d][0]]]==1 && shown[mas[linksAr[d][1]]]==1) return px[linksAr[d][1]]; else return 0;}).attr("y2", function(d) {if (shown[mas[linksAr[d][0]]]==1 && shown[mas[linksAr[d][1]]]==1) return py[linksAr[d][1]]; else return 0;}).style("stroke", "rgb(6,120,155)").attr("id","lines");
+
+	vis.selectAll("node").data(mas).enter().append("svg:circle").attr("cx", function(d) { return px[back[d]]; }).attr("cy", function(d){ return py[back[d]]; }).attr("r", function(d){if (shown[d]==1) return (ballRadius[size[back[d]]]*scale+"px");else return 0; }).attr("fill", function (d) { if (state[d]==0) return "pink"; else return "rgb(6,120,155) ";}).style("stroke","rgb(6,120,155) ").on("mousemove",function(d){mouseDef(back[d]);}).on("mouseout",function(d){mouseOut(back[d]);}).on("click",function(d){mouseClick(back[d]);}).attr("id","nodes").on("contextmenu",function(d){rightClick(back[d])});
+	vis.selectAll("node").data(mas).exit().remove();
+	vis.selectAll("name").data(mas).enter().append("text").attr("id","titles").text(function(d) {return words.keywords[d].word;}).attr("x", function(d) { return px[back[d]]+10*scale; }).attr("y", function(d){ return py[back[d]]; }).attr("font-family", "sans-serif").attr("font-size", function(d){if (shown[d]==1)return fontSize[size[back[d]]]*scale+"px";else return 0;}).attr("fill", "black");
+	}
+	</script>
+	</head>
+	<body>
+	<script type="text/javascript">
+	var dist=new Array(0,0,0,0,0,0,0,0,0,0,0,0,0,0,0);
+	var levelCount=new Array(0,0,0,0,0,0,0,0,0,0,0,0,0,0,0);
+	var pi=3.1415926;
+	var myData1=getFromJSONfile();
+	var words=JSON.parse(myData1);
+	var ballRadius= new Array(0,5,10,15);
+	var fontSize= new Array(0,10,15,20);
+	var parents=new Array();
+	var children=new Array();
+	var width=new Array();
+	var givenWidth=new Array();
+	var size=new Array();
+	var dads=new Array();
+	var px=new Array();
+	var pxx=new Array();
+	var pyy=new Array();
+	var py=new Array();
+	var mas=new Array();
+	var linksAr=new Array();
+	var masLinks=new Array();
+	var back=new Array();
+	var state={};
+	var shown={};
+	var scaleX=window.screen.width/2;
+	var scaleY=window.screen.height/4;
+	var scale=1;
+	d3.select("body").on("mousewheel",function(d){zoom(event.pageX,event.pageY,event.wheelDelta/2000);});
+	for (var i in words.keywords){
+		state[i]=0;
+		back[i]=mas.length;
+		mas[mas.length]=i;
+	}
+	for (var i in words.keywords){
+		children[children.length]=[];
+		size[size.length]=4-words.keywords[i].weight;
+	}
+	for (var i in words.keywords)
+		if (words.keywords[i].parents.length==0)
+			dads.push(back[i]);
+		
+	for (var i in words.keywords){
+		parents[parents.length]=words.keywords[i].parents;
+		for (var j=0;j<words.keywords[i].parents.length;++j){
+			children[back[ words.keywords[i].parents[j] ]].push(back[i]);
+			linksAr.push(new Array(back[i],back[words.keywords[i].parents[j]]));
+		}
+	}
+	for (var i=0;i<dads.length;++i)
+		close2levels(i,1);
+	for (var i=0;i<linksAr.length;++i)
+		masLinks[i]=i;
+
+	for (var i=0;i<dads.length;++i)
+		countOnLevels(dads[i],0);
+	for (var i=0;i<levelCount.length;++i)
+		dist[i]=max(i>0?dist[i-1]+150:0,2*levelCount[i]/pi);
+	while(1){
+		for (var i=1;i<levelCount.length;++i)
+			dist[i]=max(max(dist[i-1]*1.1,dist[i-1]+150),dist[i]);
+		var sum=0;
+		for (var i=0;i<dads.length;++i){
+			sum=sum+findWidth(dads[i],0);
+		}
+		var okWeight=1;
+		var whatIncrease,howIncrease;
+		for (var i=0;i<dads.length;++i){
+			givenWidth[dads[i]]=2*pi*width[dads[i]]/sum;
+			findGivenWidth(dads[i],0);
+		}
+		if (okWeight)
+			break;
+		//alert(whatIncrease);
+		dist[whatIncrease]+=150;
+		//alert(dist);
+	}
+	var now=0;
+	var cenX=0;
+	var cenY=0;
+
+	for (var i=0;i<dads.length;++i){
+		buildPoint(dads[i],now,0,cenX,cenY,children[dads[i]].length>0?((18+(i*11)%3)/(20)):-1/4);	
+		now+=givenWidth[dads[i]];
+	}	
+	//кусок экрана где будет располагаться граф
+	
+
+	var svg = d3.select("body").append("svg")
+		.attr("width", "100%")
+		.attr("height", "100%");
+	var vis = d3.select("body").append("svg");
+	var w = window.screen.width,h = window.screen.height;
+	vis.attr("width", w).attr("height", h);
+	vis.text("Our Graph");
+	pxx=px;
+	pyy=py;
+
+	//найти макс у и мин у
+	var minn=100;
+	var maxx=-minn;
+	
+	for (var i=0;i<mas.length;++i)
+		if (shown[mas[i]]==1 && state[mas[i]]==0){
+			minn=(py[i]<minn)?py[i]:minn;
+			maxx=(py[i]>maxx)?py[i]:maxx;
+		}
+	scale=scaleY/(scaleY-minn);
+	translateAndZoom();
+	vis.selectAll(".line").data(masLinks).enter().append("line").attr("x1", function(d) {if (shown[mas[linksAr[d][0]]]==1 && shown[mas[linksAr[d][1]]]==1) return px[linksAr[d][0]]; else return 0;}).attr("y1", function(d) {if (shown[mas[linksAr[d][0]]]==1 && shown[mas[linksAr[d][1]]]==1) return py[linksAr[d][0]]; else return 0;}).attr("x2", function(d) {if (shown[mas[linksAr[d][0]]]==1 && shown[mas[linksAr[d][1]]]==1) return px[linksAr[d][1]]; else return 0;}).attr("y2", function(d) {if (shown[mas[linksAr[d][0]]]==1 && shown[mas[linksAr[d][1]]]==1) return py[linksAr[d][1]]; else return 0;}).style("stroke", "rgb(6,120,155)").attr("id","lines");
+
+	vis.selectAll("node").data(mas).enter().append("svg:circle").attr("cx", function(d) { return px[back[d]]; }).attr("cy", function(d){ return py[back[d]]; }).attr("r", function(d){if (shown[d]==1) return (ballRadius[size[back[d]]]*scale+"px");else return 0; }).attr("fill", function (d) { if (state[d]==0) return "pink"; else return "rgb(6,120,155) ";}).style("stroke","rgb(6,120,155) ").on("mousemove",function(d){mouseDef(back[d]);}).on("mouseout",function(d){mouseOut(back[d]);}).on("click",function(d){mouseClick(back[d]);}).attr("id","nodes").on("contextmenu",function(d){rightClick(back[d])});
+	vis.selectAll("node").data(mas).exit().remove();
+	vis.selectAll("name").data(mas).enter().append("text").attr("id","titles").text(function(d) {return words.keywords[d].word;}).attr("x", function(d) { return px[back[d]]+10*scale; }).attr("y", function(d){ return py[back[d]]; }).attr("font-family", "sans-serif").attr("font-size", function(d){if (shown[d]==1)return fontSize[size[back[d]]]*scale+"px";else return 0;}).attr("fill", "black");
+
+	
+	</script>
+	<div>
+	Word
+	<br>
+	<input type="text" value="word here" id="wordText">
+	
+	</input><br>Definition
+	<input type="text" value="definition here" id="definitionText">
+	
+	</input><br>Parent ID
+	<input type="text" value="parent here" id="parentText">
+	
+	</input><br>
+	Parent
+	<input class="forb"type="text" value="don't write here" id="parentNameText" readOnly="1">
+	
+	</input><br>Weight
+	<input type="text" value="weight here" id="weightText">
+	
+	</input><br>Synonyms
+	<input type="text" value="synonyms here" id="synonymsText" >
+	
+	</input><br>Word ID
+	<input class="forb" type="text" value="don't write here" id="idText" readOnly="1" >
+	
+	</input><br>
+	<button type="button" onclick="add();">ADD</button>	<button type="button" onclick="change();">CHANGE</button> 	<button type="button" onclick="del();">DEL</button><br>
+	
+	</div>
+	</body>
+</html>
